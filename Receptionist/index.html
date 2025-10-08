@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Video Agent — Holobox</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@300;400;700&display=swap" rel="stylesheet"/>
+
+  <style>
+    :root{
+      --background-color:#6B3F2E; 
+      --text-color:#0f0f0f; 
+      --panel-background:#6B3F2E;
+      --input-background:#e0e0e0; 
+      --input-text:#000; 
+      --button-bg:#00eaff;
+      --button-hover-bg:#66f6ff; 
+      --border-color:#00eaff; 
+      --shadow-color:rgba(0,234,255,.3);
+    }
+    [data-theme="light"] {
+      --background-color:#000; 
+      --text-color:#fff; 
+      --panel-background:#1a1a1d; 
+      --input-background:#2b2b30; 
+      --input-text:#fff; 
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%; width:100%; font-family:'Mulish',sans-serif; background:var(--background-color); color:var(--text-color); margin: 0; overflow:auto}
+    
+    .title {
+      position: absolute;
+      top: clamp(8px, 2vh, 20px);       /* scales with screen height */
+      right: clamp(10px, 3vw, 30px);    /* scales with screen width */
+      display: flex;
+      align-items: flex-start;           /* align emoji with top of text */
+      margin-left: clamp(10px, 2vw, 20px);
+      padding: clamp(5px, 1.5vh, 15px) 0;
+      color: var(--border-color);
+      line-height: 1;
+      z-index: 10;
+    }
+    
+    .emoji {
+      font-size: clamp(2rem, 3vw, 3.5rem);  /* scales smoothly on all screens */
+      margin-right: clamp(5px, 1vw, 12px);
+      margin-top: 0.3vh;                     /* small vertical adjustment */
+      line-height: 0.8;
+    }
+
+    .text-block {
+      display: flex;
+      flex-direction: column;
+      line-height: 1;
+    }
+
+    .line1 { 
+      font-size: clamp(1rem, 1.3vw, 1.4rem); /* responsive headline */
+      font-weight: bold;
+      color: #D4AF37; 
+    }
+
+    .line2 { 
+      font-size: clamp(0.9rem, 1.2vw, 1.3rem); /* responsive subtext */
+      font-weight: normal; 
+      color: white; 
+      margin-top: 0.3vh;                      /* spacing from line1 */
+    }
+    
+    /* ===== Mobile Adjustments ===== */
+    
+    @media (max-width: 768px) {
+      .title {
+        top: 1.5vh;
+        right: 3vw;
+        flex-direction: row;
+        align-items: center;
+      }
+      
+      .emoji {
+        font-size: 2.2rem;
+      }
+      
+      .line1, .line2 {
+        font-size: 1rem;
+      }
+    }
+    
+    /* ===== Very Large Screens / Holobox ===== */
+    
+    @media (min-width: 1600px) {
+      .emoji {
+        font-size: 4rem;
+      }
+      
+      .line1, .line2 {
+        font-size: 1.6rem;
+      }
+    }
+
+    #content { height: 100%; width:100%; background:var(--panel-background); display:flex; padding:20px; gap:30px; justify-content:space-between }
+
+    #left-panel{ display:flex; flex-direction:column; width: 100%; align-items:center; min-height: 100vh;}
+    #video-wrapper {border-radius: clamp(10px, 2vh, 30px); width: 100%; height: auto;}
+    #video-container {width: 100%; aspect-ratio: 16 / 9; overflow: hidden;border-radius: clamp(10px, 2vh, 30px);border: 0.3vh solid var(--border-color);box-shadow: 0 0 2vh var(--shadow-color);position: relative;display: flex;align-items: center;justify-content: center;background: url("your-photo.jpg") no-repeat center center;background-size: cover;}
+    #video-fallback {position: absolute;top: 0;left: 0;width: 100%;height: 100%; object-fit: cover; z-index: 5;pointer-events: none;}
+    video {width: 100%;height: 100%;object-fit: contain; position: absolute;top: 0;left: 0;}
+
+    /* ===== Mobile & Smaller Screens ===== */
+    @media (max-width: 1024px) {
+      #video-container {aspect-ratio: 9 / 16; }
+      #video-wrapper {border-radius: clamp(8px, 1.5vh, 20px);}
+    }
+    
+    /* ===== Very Large Screens / Holobox ===== */
+    @media (min-width: 1600px) {
+      #video-wrapper {border-radius: clamp(15px, 3vh, 40px);}
+      #video-container {border-width: 0.4vh;box-shadow: 0 0 3vh var(--shadow-color);}
+    }
+
+    #idle-video{ display:none }
+
+    #tap-notification {
+  position: fixed;
+  top: clamp(8px, 2vh, 20px);      /* scales with screen height */
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.8);
+  color: white;
+  padding: clamp(6px, 1.2vh, 12px) clamp(12px, 2vw, 24px);
+  border-radius: clamp(4px, 1vh, 8px);
+  font-size: clamp(12px, 1vw, 16px);
+  font-weight: bold;
+  z-index: 3000;
+  opacity: 0;
+  animation: fadeInOut 4s forwards;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ===== FAQ Box ===== */
+.faq-box {
+  position: absolute; /* inside video container */
+  top: clamp(8px, 1.5vh, 15px);
+  left: clamp(5px, 1vw, 10px);
+  width: auto;
+  pointer-events: none;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.faq-box ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.faq-box li {
+  pointer-events: auto; /* clickable */
+  background: rgba(255,255,255,0.85);
+  padding: clamp(4px, 0.8vh, 8px) clamp(6px, 1.2vw, 12px);
+  border-radius: clamp(3px, 0.8vh, 5px);
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: clamp(10px, 1vw, 12.5px);
+  margin-bottom: clamp(4px, 0.8vh, 6px);
+  display: none;
+  transition: 0.2s;
+}
+
+.faq-box li.active {
+  display: block;
+}
+
+.faq-box li:hover {
+  background: #0078ff;
+  color: white;
+}
+
+/* ===== FAQ Header ===== */
+.faq-header {
+  font-weight: bold;
+  padding-left: clamp(6px, 1vw, 10px);
+  font-size: clamp(12px, 1.2vw, 14px);
+  margin-bottom: clamp(4px, 0.8vh, 6px);
+  color: #00BFFF;
+}
+
+/* ===== Optional Scroll Animation for FAQ ===== */
+@keyframes scrollRightToLeft {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+/* ===== Mobile Adjustments ===== */
+@media (max-width: 768px) {
+  #tap-notification { font-size: clamp(10px, 2vw, 14px); }
+  .faq-box li { font-size: clamp(9px, 2vw, 11px); padding: 4px 6px; }
+  .faq-header { font-size: clamp(10px, 2vw, 12px); }
+}
+
+/* ===== Very Large / Holobox Screens ===== */
+@media (min-width: 1600px) {
+  #tap-notification { font-size: clamp(14px, 1.2vw, 18px); }
+  .faq-box li { font-size: clamp(12px, 1.2vw, 14px); padding: 6px 12px; }
+  .faq-header { font-size: clamp(14px, 1.5vw, 16px); }
+}
+
+
+    #buttons{ display:flex; gap:12px; margin-top:18px }
+
+    #right-panel{ flex:2; display:none; flex-direction:column }
+    #conversation-history-title{ font-size:1.4rem; font-weight:700; color:rgb(245,35,70); margin-bottom:8px; padding-left:8px; border-bottom:2px solid var(--button-bg) }
+    #chat-messages{ flex:1; overflow-y:auto; margin-bottom:12px; border-radius:20px; border:1px solid var(--border-color); padding:12px; max-height:64vh; min-height:300px; background:#edf0f1; display:flex; flex-direction:column }
+    .chat-message-wrapper{ margin-bottom:12px }
+    .chat-message-wrapper.user{ align-self:flex-end; text-align:right }
+    .chat-message-wrapper.bot{ align-self:flex-start; text-align:left }
+    .chat-bubble{ padding:12px 16px; border-radius:16px; font-size:15px; line-height:1.5; max-width:100%; }
+    .user-msg{ background:rgba(4, 255, 128, 0.1); border: 1px solid #f5f5dc;  color:#0e1d1f; border-bottom-right-radius:0; box-shadow: 0 0 10px rgba(0, 255, 128, 0.6); font-family: "Orbitron", sans-serif; }
+    .bot-msg{ background:rgba(0, 128, 255, 0.1); border: 1px solid #00eaff; color: #0e1d1f; box-shadow: 0 0 10px rgba(0, 234, 255, 0.6); border-bottom-left-radius:0; font-family: "Orbitron", sans-serif; }
+    .message-timestamp{ font-size:11px; opacity:.6; margin-top:4px; color:#777 }
+
+    #destroy-button, #muteBtn, #call-button { position:absolute; bottom:10px; border:none; background-color:var(--button-bg); color:#000; padding:8px 12px; font-size:20px; border-radius:50%; cursor:pointer; box-shadow:0 2px 6px var(--shadow-color); display: flex; align-items: center; justify-content: center; transition: transform 0.3s ease;}
+    #muteBtn { left:10px;  width:60px; height:60px; font-size:24px; }
+    #destroy-button { right:10px; transform:translateX(-50%); width: 60px; height: 60px; background: #dc3545; font-size:24px; }
+    #call-button { left:50%; transform:translateX(-50%); width: 60px; height: 60px; background:#28a745; color:#fff; }
+
+    #destroy-button:hover, #call-button:hover {
+      transform: scale(1.1) translateX(-50%);
+    }
+
+    #typing-indicator{ font-style:italic; opacity:.7; margin-bottom:8px; display:none }
+    #input-container{ display:flex;bottom: 20px; gap:8px; align-items:center; width: 100%; margin-top:20px }
+    #user-input-field{ flex:1; padding:14px 20px; border-radius:12px; border:none; background:var(--input-background); color:var(--input-text); font-size:16px }
+    #enter-button,#mic-button{ border:none; background:none; color:var(--border-color); cursor:pointer; font-size:22px }
+    #mic-button.recording{ color:#f00 }
+
+    @media(max-width:900px){ #content{ flex-direction:column; padding:12px; gap:16px } #video-container{ width:100%; max-width:420px; height:240px } #right-panel{ max-width:100% } }
+  </style>
+</head>
+<body data-theme="dark">
+  </div>
+
+  <div id="tap-notification">🔴 Tap on the screen</div>
+
+  <div id="content">
+    <div id="left-panel">
+      <div id="video-wrapper">
+        <div id="video-container">
+          <img id="video-fallback" src="agent-placeholder.jpg" alt="">
+          <video id="talk-video" autoplay muted playsinline></video>
+          <video id="idle-video" src="videos/idle.mp4" playsinline></video>
+
+
+          <div class="title">
+            <span class="emoji">🏢</span>
+            <div class="text-block">
+              <span class="line1">Your Smart Receptionist Assistant</span><br>
+              <span class="line2">Enhancing Every Client Experience</span>
+            </div>
+          </div>
+
+          <div id="faq-box" class="faq-box">
+            <div class="faq-header">Here are some questions you can ask:</div>
+            <ul>
+              <li onclick="askQuestion('What does your company do?')">
+                What does your company do?
+              </li>
+
+              <li onclick="askQuestion('What services does your company provide?')">
+                What services does your company provide?
+              </li>
+
+              <li onclick="askQuestion('Who can I talk to for business inquiries?')">
+                Who can I talk to for business inquiries?
+              </li>
+
+              <li onclick="askQuestion('Can I book a meeting after the event?')">
+                Can I book a meeting after the event?
+              </li>
+
+              <li onclick="askQuestion('How do I contact you later?')">
+                How do I contact you later?
+              </li>
+
+              <li onclick="askQuestion('Do you have brochures or more information?')">
+                Do you have brochures or more information?
+              </li>
+
+              <li onclick="askQuestion('Do you offer consultations or trials?')">
+                Do you offer consultations or trials?
+              </li>
+
+              <li onclick="askQuestion('What IT services do you provide?')">
+                What IT services do you provide?
+              </li>
+
+              <li onclick="askQuestion('How does your team work with clients?')">
+                How does your team work with clients?
+              </li>
+
+              <li onclick="askQuestion('What makes Tymor Technologies different from others?')">
+                What makes your company different from others?
+              </li>
+
+              <li onclick="askQuestion('How can your services help my business?')">
+                How can your services help my business?
+              </li>
+
+              <li onclick="askQuestion('More about our solutions?')">
+                More about our solutions?
+              </li>
+
+            </ul>
+          </div>
+
+          <button id="muteBtn">🔇</button>
+          <button id="call-button" title="Connect with us">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="white" viewBox="0 0 24 24" width="28px" height="28px">
+              <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.21c1.21.49 2.53.76 3.91.76a1 1 0 011 1V20a1 1 0 01-1 1C10.29 21 3 13.71 3 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.38.27 2.7.76 3.91a1 1 0 01-.21 1.11l-2.43 2.77z"/>
+            </svg>
+          </button>
+          <button id="destroy-button" title="End Call">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="white" viewBox="0 0 24 24" width="28px" height="28px">
+              <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.21c1.21.49 2.53.76 3.91.76a1 1 0 011 1V20a1 1 0 01-1 1C10.29 21 3 13.71 3 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.38.27 2.7.76 3.91a1 1 0 01-.21 1.11l-2.43 2.77z"/>
+            </svg>
+          </button>
+        </div>
+
+        <div id="input-container">
+            <input id="user-input-field" type="text" placeholder="Write or speak here..." />
+            <button id="mic-button" title="Toggle Mic">🎙️</button>
+            <button id="enter-button" title="Send message">↵</button>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="right-panel">
+      <h2 id="conversation-history-title">Conversation History</h2>
+      <div id="chat-messages"></div>
+      <div id="typing-indicator">Assistant is typing...</div>
+      <div id="input-container">
+        <input id="user-input-field" type="text" placeholder="Write or speak here..." />
+        <button id="mic-button" title="Toggle Mic">🎙️</button>
+        <button id="enter-button" title="Send message">↵</button>
+      </div>
+    </div>
+  </div>
+
+  <audio id="ai-audio" class="hidden-audio" autoplay></audio>
+
+  <div id="session-notification" style="
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #dc3545;
+  color: #fff;
+  padding: 16px 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  font-weight: bold;
+  display: none;
+  z-index: 1000;
+">
+Session has ended
+  <span id="close-notification" style="
+  margin-left:12px;
+  cursor:pointer;
+  font-weight:bold;
+  float:right;
+  font-size:16px;
+  ">✖</span>
+</div>
+
+  <script>
+    const talkVideo = document.getElementById('talk-video');
+    const idleVideo = document.getElementById('idle-video');
+    const chatMessages = document.getElementById('chat-messages');
+    const userInput = document.getElementById('user-input-field');
+    const enterButton = document.getElementById('enter-button');
+    const muteBtn = document.getElementById('muteBtn');
+    const micButton = document.getElementById('mic-button');
+    const preloadStatus = document.getElementById('preload-status');
+
+    let step = 0;
+    let aiSpeaking = false;
+    let recognition = null;
+    let recognizing = false;
+    let firstGreetingPlayed = false;
+    let micArmed = true;
+    let destroyFlag = false;
+
+    const videos = {
+      greeting:'videos/Greetings.mp4',
+      zip:'videos/Zip.mp4',
+      Another:'videos/Another.mp4',
+      phone:'videos/Phone.mp4',
+      start:'videos/Start.mp4',
+      provide:'videos/Provide.mp4',
+      ready:'videos/Ready.mp4',
+      after_event:'videos/After event.mp4',
+      reach_us:'videos/Reach us.mp4',
+      brochures:'videos/brochures.mp4',
+      trail_options:'videos/Trial options.mp4',
+      it:'videos/IT.mp4',
+      work_with_clients:'videos/Team work with clients.mp4',
+      different_from_others:'videos/Different from others.mp4',
+      help:'videos/Help my business.mp4',
+      more_about:'videos/About the solutions.mp4',
+      Significant:'videos/Significant.mp4'
+    };
+
+    const transcripts = {
+      greeting:"👋 I'm James, your advanced Cybersecurity AI Assistant. I'm here to help you navigate the Cyber Defense Assistance Initiative, part of the national effort to strengthen digital security for businesses and organizations. May I first ask: Are you seeking cybersecurity guidance for your business network?",
+      zip:"Great! To provide you with the most accurate, detailed, and personalized quote possible, could you please kindly share your zip code with me today?",
+      phone:"That's sounds like a great place.Just one more thing could you please share your phone number? It’s just for verification and your privacy is fully protected.",
+      start:"Thanks! You’re all set. I’m here to assist you anytime whether it’s protecting your business, understanding the latest threats, or improving your overall security posture. Feel free to ask me anything about cybersecurity now.",
+      cybersecurity:"Cybersecurity is the protection of computers, networks, and data from unauthorized access.It safeguards personal details, financial records, and business operations. Without it, attacks could cause serious loss or damage.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      antivirus:"Antivirus helps block malware and malicious websites.It scans your device regularly for suspicious activity.Always keep it updated for best protection.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      malware:"Malware is malicious software built to harm, steal, or disrupt systems.Common types include viruses, trojans, worms, and ransomware.It spreads through downloads, emails, or unsafe websites.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      phishing:"Phishing is a cyberattack that tricks people into revealing personal information.It often comes as fake emails, texts, or websites.The goal is usually to steal passwords, money, or identities.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      ransomware:"Ransomware locks or encrypts your files so you can’t access them.Hackers then demand payment, usually in cryptocurrency.The safest way to recover is restoring from a clean backup.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      hacked:"Watch for unknown logins, password reset alerts, or strange messages.Unexpected transactions or files disappearing are red flags.If suspicious, change passwords and scan your system.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      firewall:"A firewall acts like a digital security guard for networks.It monitors traffic and blocks unauthorized access.This helps keep attackers from entering systems.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      social:"Social engineering uses manipulation instead of hacking tools.Attackers trick people into giving up passwords or info.Phishing emails and fake calls are common examples.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      businesses:"They should use firewalls, encryption, and secure backups.Regular software updates reduce vulnerabilities.Employee awareness training is just as critical.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      authentication:"2FA is an extra layer of login security after your password.It usually requires a code sent to your phone or app.This makes accounts much harder to break into.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      attack:"Common cyberattacks include phishing, malware, and ransomware.Other attacks are denial-of-service (DoS) and man-in-the-middle.Insider threats and zero-day exploits are also serious risks.Each type targets different vulnerabilities in systems.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      password:"Strong passwords make it harder for attackers to break into accounts.Weak or reused passwords are easy targets for hackers.A strong password includes letters, numbers, and symbols.Using a password manager helps keep them safe.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      encryption:"Encryption is the process of converting data into unreadable code.Only authorized users with a decryption key can read it.It protects sensitive information during transfer or storage.Encryption is critical for banking, messaging, and cloud security.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      policy:"A security policy is a set of rules for protecting information.It defines how data is accessed, shared, and secured.Policies guide employees to follow safe practices.They reduce risks and support compliance with regulations.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      compliance:"Compliance means following cybersecurity laws and regulations.It ensures businesses meet industry standards like GDPR or HIPAA.Non-compliance can result in heavy fines and penalties.It builds trust with customers and protects company reputation.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      ddos:"A Distributed Denial-of-Service attack overwhelms systems with traffic.It uses multiple infected devices to flood a website or server.This causes downtime, lost revenue, and poor customer experience.Mitigation involves firewalls, filters, and traffic monitoring.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      spyware:"Spyware is malicious software that secretly monitors your computer or device activity.It can track keystrokes, capture passwords, and collect sensitive information.Spyware often comes bundled with free software or downloads.Protecting your system with antivirus and safe browsing habits can prevent it.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      trojan:"A virus is malware that can replicate and spread to other files or systems.A trojan disguises itself as legitimate software to trick users into installing it.Both can steal data, damage files, or disrupt system operations.Using antivirus software and avoiding suspicious downloads helps protect against them.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      exploit:"A zero-day exploit targets a software vulnerability that is unknown to the developer.Attackers exploit it before a patch or fix is available.It can cause serious damage, including data theft or system compromise.Prompt updates and threat monitoring help reduce the risk.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      cyber_attacks_happen:"Cyber attacks occur when attackers exploit weaknesses in systems, networks, or users.Common methods include phishing, malware, ransomware, and social engineering.Attackers may target individuals, businesses, or critical infrastructure.Strong security practices and employee awareness reduce the risk of attacks.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      cloud_security:"Cloud security protects data, applications, and services hosted on cloud platforms.It includes access controls, encryption, and monitoring to prevent unauthorized access.Good cloud security ensures confidentiality, integrity, and availability of data.Businesses must follow best practices and use secure cloud providers.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      VPN:"A VPN (Virtual Private Network) creates a secure, encrypted connection over the internet.It protects your data from hackers, especially on public Wi-Fi networks.A VPN can also help maintain privacy by masking your IP address.Using a trusted VPN service reduces the risk of cyber threats.Shall I connect you to our expert via audio, you may also click the green button inside the video container to initiate a call with us.",
+      biggest_cyber_threts_in_business:"The main threats include phishing, ransomware, malware, insider risks, and weak passwords.Small and medium businesses are often targeted due to fewer defenses.Regular monitoring and awareness can reduce these risks.Implementing layered security is crucial.For a more detailed explanation, I can connect you to our expert via audio, or you can click the green button inside the video container to start a call.",
+      how_often_update_cybersecurity_measures:"Patch software immediately when updates are released.Review security policies quarterly and conduct audits annually.Regular updates keep systems protected against new threats.Test your defenses to identify vulnerabilities.For a more detailed explanation, I can connect you to our expert via audio, or you can click the green button inside the video container to start a call.",
+      how_create_cybersecurity_plan_organization:"Identify critical assets and potential threats.Set security policies and assign responsibilities.Implement protective measures and response protocols.Test and update your plan regularly.For a more detailed explanation, I can connect you to our expert via audio, or you can click the green button inside the video container to start a call.",
+      types_of_firewall:"There are several types of firewalls, including packet-filtering firewalls, which inspect incoming and outgoing data packets.Stateful inspection firewalls track the state of active connections to allow or block traffic.Proxy firewalls act as intermediaries between users and the internet, filtering requests.Next-generation firewalls (NGFW) combine traditional filtering with intrusion detection and application-level inspection.For a more detailed explanation, I can connect you to our expert via audio, or you can click the green button inside the video container to start a call.",
+      more_about:"To learn more about the solutions we provide, I can connect you to our expert via audio, or you may click the green button inside the video container to initiate a call with us.",
+      significant:"That’s a significant consideration in the field of cybersecurity. For more detailed guidance, I can connect you to our expert via audio, or you may click the green button inside the video container to initiate a call with us."
+    };
+
+    function checkAutoConnect(text) {
+      const normalized = text.toLowerCase();
+      if (
+        normalized.includes("audio") ||
+        normalized.includes("expert") ||
+        normalized.includes("joe") ||
+        normalized.includes("connect me to audio") ||
+        normalized.includes("connect me to the audio") ||
+        normalized.includes("connect me")
+      ) {
+        sessionStorage.setItem("lastPage", window.location.href);
+        window.location.assign('https://tymortechnologies-phone-system.pa.3cx.us/LiveChat196241');
+        userInput.value = '';
+        return true;
+      }
+      return false;
+    }
+
+
+    function addMessage(role,text){
+      const wrap=document.createElement('div');
+      wrap.className='chat-message-wrapper '+(role==='user'?'user':'bot');
+
+      const heading = document.createElement('div');
+      heading.className = 'chat-heading';
+      heading.innerText = role === 'user' ? '🧑 You' : '🤖 AI Assistant';
+
+      const bubble=document.createElement('div');
+      bubble.className='chat-bubble '+(role==='user'?'user-msg':'bot-msg');
+      bubble.innerText=text;
+      const ts=document.createElement('div');
+      ts.className='message-timestamp';
+      ts.innerText=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      wrap.appendChild(heading);
+      wrap.appendChild(bubble); wrap.appendChild(ts);
+      chatMessages.appendChild(wrap);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+
+
+    idleVideo.addEventListener("loadeddata", () => {
+      idleVideo.currentTime = 0;
+      idleVideo.pause();
+    });
+    
+    
+    function fadeIn(element, duration = 300) {
+    element.style.display = 'block';
+    element.style.pointerEvents = 'auto';
+    element.style.opacity = 0;
+    const start = performance.now();
+    const tick = (time) => {
+      const elapsed = time - start;
+      element.style.opacity = Math.min(elapsed / duration, 1);
+      if (elapsed < duration) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  
+  function fadeOut(element, duration = 300) {
+    element.style.pointerEvents = 'none';
+    const start = performance.now();
+    const tick = (time) => {
+      const elapsed = time - start;
+      element.style.opacity = Math.max(1 - elapsed / duration, 0);
+      if (elapsed < duration) {
+        requestAnimationFrame(tick);
+      } else {
+        element.style.display = 'none';
+      }
+    };
+    requestAnimationFrame(tick);
+  }
+
+
+    async function playVideo(key){
+      if(!videos[key]) return;
+      aiSpeaking=true;
+      const startPlayback = () => {
+        talkVideo.src = videos[key];
+        fadeIn(talkVideo, 300);
+        fadeOut(idleVideo, 300);
+        talkVideo.currentTime=0;
+        const fallback = document.getElementById('video-fallback');
+        fallback.style.opacity = "1";
+        talkVideo.oncanplay = () => {
+          fallback.style.opacity = "0";
+        };
+        talkVideo.play().catch(()=>{});
+        
+        if (transcripts[key]) {
+          document.getElementById('typing-indicator').style.display='block';
+          talkVideo.onloadedmetadata = async () => {
+            const duration = talkVideo.duration * 1000;
+            const text = transcripts[key];
+            const speed = (duration*0.9) / text.length; // ms per character
+            
+            
+            await typeWriter(text, speed);
+            document.getElementById('typing-indicator').style.display='none';
+          };
+        }
+      }
+      
+      talkVideo.addEventListener('ended',()=>{
+        aiSpeaking=false;
+        fadeOut(talkVideo, 300);
+        fadeIn(idleVideo, 300);
+        idleVideo.muted = talkVideo.muted;
+        idleVideo.pause();
+      });
+      
+      
+      if (key === "greeting") {
+        setTimeout(startPlayback, 1800);
+      } else {
+        startPlayback();
+      }
+    }
+
+    const negativeResponses = [
+    "no",
+    "nah",
+    "not really",
+    "don't need it",
+    "nothing",
+    "nope",
+    "not interested",
+    "never"
+  ];
+
+  const faqItems = document.querySelectorAll(".faq-box li");
+  let currentIndex = 0;
+
+
+  function showNextQuestion() {
+    faqItems.forEach(item => item.classList.remove("active"));
+    for (let i = 0; i < 3; i++) {
+      const index = (currentIndex + i) % faqItems.length;
+      faqItems[index].classList.add("active");
+    }
+    currentIndex = (currentIndex + 3) % faqItems.length;
+  }
+
+  showNextQuestion();
+  setInterval(showNextQuestion, 5000);
+
+  function saveQuestion(question) {
+    fetch("https://script.google.com/macros/s/AKfycbzRp8qUblPBnnWTVkD-38_2Ur4RCqLV6WtFu91TvhbWmzlKAHs5ogycDMqjaVx25w4_Yw/exec", {
+      method: "POST",
+      body: JSON.stringify({ question })
+    });
+  }
+
+
+    async function handleUserInput(text){
+      const userMessage = text.trim();
+      if (!userMessage) return;
+      saveQuestion(userMessage);
+
+      const normalized = text.trim().toLowerCase();
+
+      if(step===1){
+        const isNegative = negativeResponses.some(neg => normalized.includes(neg));
+        if(isNegative){
+          playVideo('Another');
+          step = 2;
+          return;
+        }
+
+        playVideo('zip');
+        step=2;
+        return;
+      }
+      if(step===2){
+        playVideo('phone');
+        step=3;
+        return;
+      }
+      if(step===3){
+        playVideo('start');
+        step=4;
+        return;
+      }
+      if(step>=4){
+        const keywordMap = [
+        {regex: /tymor technologies|tymor tech|Timor|timer|technology's|more about|about tymor/i, video: 'more_about'},
+        {regex: /what does your company do|company overview|company profile|who are you|about the company|company info|what is tymor technologies/i, video: 'provide'},
+        {regex: /how can your services help my business|help my business|business growth|benefits for business|business optimization|increase efficiency|business support|solutions for business/i, video: 'help'},
+        {regex: /who can i talk to for business inquiries|business enquiry|business contact|business inquiries|partnership|collaboration|business representative|contact for business/i, video: 'ready'},
+        {regex: /can i book a meeting after the event|schedule meeting|meeting request|follow-up meeting|post-event meeting|arrange meeting/i, video: 'after_event'},
+        {regex: /how do i contact you later|contact details|reach us|get in touch|communication|contact information|follow up/i, video: 'reach_us'},
+        {regex: /do you have brochures or more information|brochures|brochure|information material|flyers|documents|details|info sheets/i, video: 'brochures'},
+        {regex: /do you offer consultations or trials|consultation|trial options|demo sessions|free consultation|test services|trial/i, video: 'trail_options'},
+        {regex: /what it services do you provide|managed it services|co-managed it services |it services|it help desk|server administration|network monitoring|remote it support|onsite it support|it assessment/i, video: 'it'},
+        {regex: /how does your team work with clients|work with clients|manage clients|team collaboration|client approach|client engagement|team methodology|working with clients|client interaction/i, video: 'work_with_clients'},
+        {regex: /what makes different from others|others|different from others|company advantages|unique value proposition|why choose us|company strengths|competitive advantage|what sets you apart/i, video: 'different_from_others'},
+        {regex: /what services does your company provide|services|services offered|solutions provided|service offerings|it services|technology services|digital solutions/i, video: 'provide'}
+      ];
+
+      const matches = keywordMap.filter(({regex}) => regex.test(text));
+      if(matches.length){
+        playVideo(matches[0].video);
+      } else {
+        playVideo('Significant');
+
+      }
+    }
+  }
+
+
+
+
+
+    
+
+    
+    
+    function typeWriter(text, speed = 40) {
+      return new Promise(resolve => {
+        const wrap = document.createElement("div");
+        wrap.className = "chat-message-wrapper bot";
+
+        const heading = document.createElement("div");
+        heading.className = "chat-heading";
+        heading.innerText = "🤖 AI Assistant";
+        wrap.appendChild(heading);
+        
+        const bubble = document.createElement("div");
+        bubble.className = "chat-bubble bot-msg";
+        wrap.appendChild(bubble);
+        const ts = document.createElement("div");
+        ts.className = "message-timestamp";
+        ts.innerText = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        wrap.appendChild(ts);
+        
+        chatMessages.appendChild(wrap);
+        
+        let i = 0;
+        function typing() {
+          if (destroyFlag) return resolve();
+          if (i < text.length) {
+            bubble.textContent += text.charAt(i);
+            i++;
+
+            chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: "smooth" });
+
+            setTimeout(typing, speed);
+          } else {
+            resolve();
+          }
+        }
+        typing();
+      });
+    }
+
+
+    async function sendMessage(){
+      const text=userInput.value.trim();
+      if(!text) return;
+      if (checkAutoConnect(text)) return;
+      addMessage('user', text);
+      userInput.value='';
+      document.getElementById('typing-indicator').style.display='block';
+      await handleUserInput(text);
+      document.getElementById('typing-indicator').style.display='none';
+    }
+
+    enterButton.addEventListener('click', sendMessage);
+    userInput.addEventListener('keydown', e=>{ if(e.key==='Enter') sendMessage(); });
+
+    // Kickoff
+    step=1;
+    playVideo('greeting');
+
+    function enableAudioOnInteraction() {
+      talkVideo.muted = false;
+      idleVideo.muted = false;
+
+      const muteBtn = document.getElementById('muteBtn');
+      if (muteBtn) {
+        muteBtn.textContent = '🔊';
+      }
+
+      if (!talkVideo.paused) {
+        const currentTime = talkVideo.currentTime;
+        talkVideo.pause();
+        talkVideo.currentTime = currentTime;
+        talkVideo.play().catch(()=>{});
+      }
+
+      document.body.removeEventListener('click', enableAudioOnInteraction);
+      document.body.removeEventListener('touchstart', enableAudioOnInteraction);
+    }
+
+    document.body.addEventListener('click', enableAudioOnInteraction);
+    document.body.addEventListener('touchstart', enableAudioOnInteraction);
+
+    // Mute toggle
+    muteBtn.addEventListener('click',()=>{
+      const newMuted = !talkVideo.muted;
+      talkVideo.muted = newMuted;
+      idleVideo.muted = newMuted;
+      muteBtn.textContent = newMuted ? '🔇 ' : '🔊 ';
+    });
+
+    // Call button
+    document.getElementById('call-button').addEventListener('click', ()=>{
+      window.location.assign('https://tymortechnologies-phone-system.pa.3cx.us/LiveChat196241');
+    });
+
+    // Speech recognition
+    if('webkitSpeechRecognition' in window || 'SpeechRecognition' in window){
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SR();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      function updateMicButton(state) {
+        micButton.classList.toggle('recording', state);
+        micButton.textContent = state ? '🎙️' : '🔇';
+        micButton.disabled = false;
+      }
+
+      
+      micButton.addEventListener('click', () => {
+        if (aiSpeaking) return;
+        micArmed = !micArmed;
+        if (micArmed) recognition?.start();
+        else recognition?.stop();
+        updateMicButton(micArmed); 
+      });
+
+      recognition.onresult = (event) => {
+        if (aiSpeaking) return;
+        let interim = '';
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const r = event.results[i];
+          if (r.isFinal) finalTranscript += r[0].transcript;
+          else interim += r[0].transcript;
+        }
+
+        if (interim) userInput.value = interim;
+        if (finalTranscript) {
+          userInput.value = finalTranscript.trim();
+          if (checkAutoConnect(finalTranscript)) return;
+          sendMessage();
+        }
+      };
+
+      recognition.onend = () => {
+        if (micArmed && !aiSpeaking) recognition.start(); // auto-restart
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event);
+      };
+
+      } else {
+        micButton.disabled = true;
+        micButton.title = "Speech Recognition not supported";
+      }
+
+      talkVideo.addEventListener('play', () => {
+        aiSpeaking = true;
+        if (micArmed) recognition?.stop();
+      });
+
+      talkVideo.addEventListener('ended', () => {
+        aiSpeaking = false;
+        if (!firstGreetingPlayed) {
+          firstGreetingPlayed = true;
+
+          if (recognition) {
+            micArmed = true;
+            recognition.start();
+            updateMicButton(true);
+          }
+        } else {
+          if (micArmed) {
+            recognition.start();
+            updateMicButton(true);
+          }
+        }
+      });
+
+      talkVideo.addEventListener('pause', () => {
+        aiSpeaking = false;
+        if (micArmed) recognition?.start();
+      });
+
+      function destroyAll() {
+        destroyFlag = true;
+
+        talkVideo.pause();
+        talkVideo.currentTime = 0;
+
+        fadeOut(talkVideo, 300);
+
+        idleVideo.currentTime = 0;   // set to first frame
+        idleVideo.pause();
+        fadeIn(idleVideo, 300);
+
+        if (recognition) {
+          recognition.stop();
+          micArmed = false;
+          micButton.classList.remove('recording');
+          micButton.textContent = '🔇';
+          micButton.disabled = true;
+        }
+
+        const userInputField = document.getElementById("user-input-field");
+        userInputField.disabled = true; 
+        userInputField.placeholder = "Session stopped";
+        const sendButton = document.getElementById("enter-button");
+        if (sendButton) sendButton.disabled = true; // 🚫 Block send button if exists
+
+        document.getElementById("typing-indicator").style.display = "none";
+
+        const notification = document.getElementById("session-notification");
+        notification.style.display = "block"; 
+        const closeBtn = document.getElementById("close-notification");
+        closeBtn.addEventListener("click", () => {
+          notification.style.display = "none";
+        });
+
+        setTimeout(() => {
+          notification.style.display = "none";
+          }, 5000);
+      }
+      
+      document.getElementById("destroy-button").addEventListener("click", destroyAll);
+
+  </script>
+</body>
+</html>
+
